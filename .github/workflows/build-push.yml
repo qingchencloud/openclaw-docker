@@ -17,7 +17,7 @@ on:
 
 env:
   GHCR_REGISTRY: ghcr.io
-  ALIYUN_REGISTRY: registry.cn-hangzhou.aliyuncs.com
+  TENCENT_REGISTRY: ccr.ccs.tencentyun.com
   IMAGE_NAME: qingchencloud/openclaw
 
 jobs:
@@ -55,19 +55,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── 登录阿里云 ACR（国内源，可选） ──
-      - name: Login to Alibaba Cloud ACR
-        if: ${{ secrets.ALIYUN_ACR_USERNAME != '' }}
+      # ── 登录腾讯云 TCR（国内源，可选） ──
+      - name: Login to Tencent Cloud TCR
+        if: ${{ secrets.TENCENT_TCR_USERNAME != '' }}
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.ALIYUN_REGISTRY }}
-          username: ${{ secrets.ALIYUN_ACR_USERNAME }}
-          password: ${{ secrets.ALIYUN_ACR_PASSWORD }}
+          registry: ${{ env.TENCENT_REGISTRY }}
+          username: ${{ secrets.TENCENT_TCR_USERNAME }}
+          password: ${{ secrets.TENCENT_TCR_PASSWORD }}
 
       - name: Determine version and tags
         id: meta
         env:
-          HAS_ALIYUN: ${{ secrets.ALIYUN_ACR_USERNAME != '' }}
+          HAS_TENCENT: ${{ secrets.TENCENT_TCR_USERNAME != '' }}
         run: |
           VERSION="${{ github.event.inputs.openclaw_version || 'latest' }}"
           SOURCE="${{ github.event.inputs.openclaw_source || 'zh' }}"
@@ -88,14 +88,14 @@ jobs:
             TAGS="${TAGS},${{ env.GHCR_REGISTRY }}/${{ env.IMAGE_NAME }}:official${SUFFIX}"
           fi
 
-          # 阿里云 ACR 标签（如果配置了）
-          if [ "$HAS_ALIYUN" = "true" ]; then
-            TAGS="${TAGS},${{ env.ALIYUN_REGISTRY }}/${{ env.IMAGE_NAME }}:latest${SUFFIX}"
+          # 腾讯云 TCR 标签（如果配置了）
+          if [ "$HAS_TENCENT" = "true" ]; then
+            TAGS="${TAGS},${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:latest${SUFFIX}"
             if [ "$VERSION" != "latest" ]; then
-              TAGS="${TAGS},${{ env.ALIYUN_REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}${SUFFIX}"
+              TAGS="${TAGS},${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}${SUFFIX}"
             fi
             if [ "$SOURCE" = "official" ]; then
-              TAGS="${TAGS},${{ env.ALIYUN_REGISTRY }}/${{ env.IMAGE_NAME }}:official${SUFFIX}"
+              TAGS="${TAGS},${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:official${SUFFIX}"
             fi
           fi
 
@@ -129,6 +129,6 @@ jobs:
           echo "   ghcr.io/${{ env.IMAGE_NAME }}:latest"
           echo "   ghcr.io/${{ env.IMAGE_NAME }}:latest-gateway"
           echo ""
-          echo "🇨🇳 国内源（阿里云 ACR）:"
-          echo "   ${{ env.ALIYUN_REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "   ${{ env.ALIYUN_REGISTRY }}/${{ env.IMAGE_NAME }}:latest-gateway"
+          echo "🇨🇳 国内源（腾讯云 TCR）:"
+          echo "   ${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          echo "   ${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:latest-gateway"
