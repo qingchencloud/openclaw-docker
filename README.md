@@ -6,6 +6,8 @@
 
 ## 快速启动
 
+### 方式一：先跑起来，再通过面板配置模型
+
 ```bash
 docker run -d \
   --name openclaw \
@@ -16,7 +18,37 @@ docker run -d \
   ghcr.io/qingchencloud/openclaw:latest
 ```
 
-打开浏览器访问 **http://localhost:1420** 即可使用。
+打开浏览器访问 **http://localhost:1420** → 模型管理 → 添加 API Key。
+
+### 方式二：启动时直接传入 API Key（真正零配置）
+
+```bash
+# OpenAI
+docker run -d --name openclaw --restart unless-stopped \
+  -p 1420:1420 -p 18789:18789 \
+  -v openclaw-data:/root/.openclaw \
+  -e OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx \
+  ghcr.io/qingchencloud/openclaw:latest
+
+# Anthropic
+docker run -d --name openclaw --restart unless-stopped \
+  -p 1420:1420 -p 18789:18789 \
+  -v openclaw-data:/root/.openclaw \
+  -e ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxx \
+  ghcr.io/qingchencloud/openclaw:latest
+
+# 第三方 API / 中转站
+docker run -d --name openclaw --restart unless-stopped \
+  -p 1420:1420 -p 18789:18789 \
+  -v openclaw-data:/root/.openclaw \
+  -e CUSTOM_API_KEY=sk-xxx \
+  -e CUSTOM_BASE_URL=https://your-proxy.com/v1 \
+  -e CUSTOM_PROVIDER_NAME="我的API" \
+  -e CUSTOM_MODEL_LIST="gpt-4o,claude-sonnet-4-20250514" \
+  ghcr.io/qingchencloud/openclaw:latest
+```
+
+启动后打开 **http://localhost:1420**，模型已自动配好，直接可用。
 
 ## 镜像说明
 
@@ -53,6 +85,8 @@ docker compose up -d
 
 ### 环境变量
 
+**基础配置：**
+
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `OPENCLAW_SOURCE` | `zh` | 版本源：`zh`=汉化版，`official`=原版 |
@@ -61,6 +95,19 @@ docker compose up -d
 | `GATEWAY_PORT` | `18789` | Gateway 端口 |
 | `NPM_REGISTRY` | `https://registry.npmmirror.com` | npm 镜像源 |
 | `TZ` | `Asia/Shanghai` | 时区 |
+
+**模型渠道（可选，也可通过面板 UI 配置）：**
+
+| 变量 | 说明 |
+|------|------|
+| `OPENAI_API_KEY` | OpenAI API Key |
+| `OPENAI_BASE_URL` | OpenAI 端点（默认 `https://api.openai.com/v1`） |
+| `ANTHROPIC_API_KEY` | Anthropic API Key |
+| `ANTHROPIC_BASE_URL` | Anthropic 端点（默认 `https://api.anthropic.com`） |
+| `CUSTOM_API_KEY` | 自定义 OpenAI 兼容 API Key |
+| `CUSTOM_BASE_URL` | 自定义 API 端点 |
+| `CUSTOM_PROVIDER_NAME` | 自定义渠道名称（默认 `Custom`） |
+| `CUSTOM_MODEL_LIST` | 可用模型列表，逗号分隔 |
 
 ### 数据持久化
 

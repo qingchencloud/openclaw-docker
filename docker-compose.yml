@@ -27,6 +27,15 @@ services:
       - TZ=${TZ:-Asia/Shanghai}
       - GATEWAY_PORT=18789
       - PANEL_PORT=1420
+      # 模型渠道（可选，也可通过面板配置）
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-}
+      - CUSTOM_API_KEY=${CUSTOM_API_KEY:-}
+      - CUSTOM_BASE_URL=${CUSTOM_BASE_URL:-}
+      - CUSTOM_PROVIDER_NAME=${CUSTOM_PROVIDER_NAME:-}
+      - CUSTOM_MODEL_LIST=${CUSTOM_MODEL_LIST:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:1420/"]
       interval: 30s
