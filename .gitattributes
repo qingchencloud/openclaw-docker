@@ -1,0 +1,4 @@
+# 确保 shell 脚本在所有平台使用 LF 行尾（Docker 容器需要）
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+Dockerfile text eol=lf
