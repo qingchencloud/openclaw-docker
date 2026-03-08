@@ -50,6 +50,25 @@ docker run -d --name openclaw --restart unless-stopped \
 
 启动后打开 **http://localhost:1420**，模型已自动配好，直接可用。
 
+## 🇨🇳 国内加速
+
+GHCR 在国内拉取较慢，推荐使用阿里云镜像源：
+
+```bash
+# 国内用户推荐
+docker run -d --name openclaw --restart unless-stopped \
+  -p 1420:1420 -p 18789:18789 \
+  -v openclaw-data:/root/.openclaw \
+  registry.cn-hangzhou.aliyuncs.com/qingchencloud/openclaw:latest
+```
+
+| 源 | 地址 | 适用 |
+|---|------|------|
+| **阿里云 ACR** | `registry.cn-hangzhou.aliyuncs.com/qingchencloud/openclaw` | 🇨🇳 国内推荐 |
+| **GHCR** | `ghcr.io/qingchencloud/openclaw` | 🌍 国际 |
+
+两个源镜像完全一致，CI 自动双推。
+
 ## 镜像说明
 
 | 镜像标签 | 内容 | 适用场景 |
