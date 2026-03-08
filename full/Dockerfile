@@ -4,6 +4,9 @@
 # 构建：docker build -t qingchencloud/openclaw:latest -f full/Dockerfile .
 # 运行：docker run -d -p 1420:1420 -p 18789:18789 -v openclaw-data:/root/.openclaw qingchencloud/openclaw
 
+# 全局 ARG（必须在第一个 FROM 之前，才能在所有 FROM 中使用）
+ARG OPENCLAW_ZH_TAG=2026.3.7-zh.2
+
 # ── 第一阶段：构建 ClawPanel Web ──
 FROM node:22-slim AS panel-builder
 
@@ -21,7 +24,6 @@ RUN git clone --depth 1 --branch ${CLAWPANEL_BRANCH} ${CLAWPANEL_REPO} . && \
 
 # ── 第二阶段：基于汉化版镜像，叠加 Panel ──
 # 版本锁定：见 VERSION 文件
-ARG OPENCLAW_ZH_TAG=2026.3.7-zh.2
 FROM 1186258278/openclaw-zh:${OPENCLAW_ZH_TAG}
 
 LABEL maintainer="qingchencloud <https://github.com/qingchencloud>"

@@ -4,7 +4,7 @@
 # 构建：docker build -t qingchencloud/openclaw:latest-gateway -f gateway/Dockerfile .
 # 运行：docker run -d -p 18789:18789 -v openclaw-data:/root/.openclaw qingchencloud/openclaw:latest-gateway
 
-# 版本锁定：见 VERSION 文件
+# 版本锁定：见 VERSION 文件（ARG 必须在 FROM 之前）
 ARG OPENCLAW_ZH_TAG=2026.3.7-zh.2
 FROM 1186258278/openclaw-zh:${OPENCLAW_ZH_TAG}
 
