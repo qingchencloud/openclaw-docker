@@ -21,7 +21,25 @@ env:
   IMAGE_NAME: qingchencloud/openclaw
 
 jobs:
+  # 先检测腾讯云 TCR 是否配置了 secrets
+  check-secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      has_tencent: ${{ steps.check.outputs.has_tencent }}
+    steps:
+      - name: Check TCR secrets
+        id: check
+        env:
+          TCR_USER: ${{ secrets.TENCENT_TCR_USERNAME }}
+        run: |
+          if [ -n "$TCR_USER" ]; then
+            echo "has_tencent=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_tencent=false" >> $GITHUB_OUTPUT
+          fi
+
   build-and-push:
+    needs: check-secrets
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -57,7 +75,7 @@ jobs:
 
       # ── 登录腾讯云 TCR（国内源，可选） ──
       - name: Login to Tencent Cloud TCR
-        if: ${{ secrets.TENCENT_TCR_USERNAME != '' }}
+        if: needs.check-secrets.outputs.has_tencent == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.TENCENT_REGISTRY }}
@@ -67,7 +85,7 @@ jobs:
       - name: Determine version and tags
         id: meta
         env:
-          HAS_TENCENT: ${{ secrets.TENCENT_TCR_USERNAME != '' }}
+          HAS_TENCENT: ${{ needs.check-secrets.outputs.has_tencent }}
         run: |
           VERSION="${{ github.event.inputs.openclaw_version || 'latest' }}"
           SOURCE="${{ github.event.inputs.openclaw_source || 'zh' }}"
