@@ -27,7 +27,7 @@ ENV OPENCLAW_SOURCE=${OPENCLAW_SOURCE} \
 
 # 安装基础工具
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl tini ca-certificates && \
+    curl git tini ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 # 安装 OpenClaw
