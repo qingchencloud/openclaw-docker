@@ -1,0 +1,13 @@
+# OpenClaw Docker 版本锁定
+# 修改此文件来控制构建使用的基础镜像版本
+#
+# 更新流程：
+#   1. 汉化版发布新版本
+#   2. 本地拉取测试确认稳定
+#   3. 修改下面的 TAG
+#   4. 打 tag 推送，CI 自动构建
+
+OPENCLAW_ZH_IMAGE=1186258278/openclaw-zh
+OPENCLAW_ZH_TAG=2026.3.7-zh.2
+CLAWPANEL_REPO=https://github.com/qingchencloud/clawpanel.git
+CLAWPANEL_BRANCH=main

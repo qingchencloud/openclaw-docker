@@ -1,47 +1,28 @@
 # OpenClaw Gateway — 轻量级 AI 助手网关
-# 仅包含 Gateway 服务，适合与外部 Panel 搭配使用
+# 基于汉化版预构建镜像，仅包含 Gateway 服务
 #
-# 构建：docker build -t qingchencloud/openclaw:gateway -f gateway/Dockerfile .
-# 运行：docker run -d -p 18789:18789 -v openclaw-data:/root/.openclaw qingchencloud/openclaw:gateway
+# 构建：docker build -t qingchencloud/openclaw:latest-gateway -f gateway/Dockerfile .
+# 运行：docker run -d -p 18789:18789 -v openclaw-data:/root/.openclaw qingchencloud/openclaw:latest-gateway
 
-FROM node:22-slim
+# 版本锁定：见 VERSION 文件
+ARG OPENCLAW_ZH_TAG=2026.3.7-zh.2
+FROM 1186258278/openclaw-zh:${OPENCLAW_ZH_TAG}
 
 LABEL maintainer="qingchencloud <https://github.com/qingchencloud>"
 LABEL org.opencontainers.image.title="OpenClaw Gateway"
-LABEL org.opencontainers.image.description="OpenClaw AI Gateway — 轻量级容器化部署"
+LABEL org.opencontainers.image.description="OpenClaw AI Gateway — 轻量级容器化部署（汉化版）"
 LABEL org.opencontainers.image.source="https://github.com/qingchencloud/openclaw-docker"
 LABEL org.opencontainers.image.url="https://github.com/qingchencloud/openclaw-docker"
 
-# 构建参数
-ARG OPENCLAW_SOURCE=zh
-ARG OPENCLAW_VERSION=latest
-ARG NPM_REGISTRY=https://registry.npmmirror.com
-
 # 环境变量
-ENV OPENCLAW_SOURCE=${OPENCLAW_SOURCE} \
-    OPENCLAW_VERSION=${OPENCLAW_VERSION} \
-    NPM_REGISTRY=${NPM_REGISTRY} \
-    GATEWAY_PORT=18789 \
+ENV GATEWAY_PORT=18789 \
     NODE_ENV=production \
     TZ=Asia/Shanghai
 
-# 安装基础工具
+# 安装运行时依赖（基础镜像可能缺少 tini、curl）
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl git tini ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-
-# 安装 OpenClaw
-RUN if [ "$OPENCLAW_SOURCE" = "zh" ]; then \
-      PKG="@qingchencloud/openclaw-zh"; \
-    else \
-      PKG="openclaw"; \
-    fi && \
-    if [ "$OPENCLAW_VERSION" = "latest" ]; then \
-      npm install -g "$PKG" --registry "$NPM_REGISTRY"; \
-    else \
-      npm install -g "${PKG}@${OPENCLAW_VERSION}" --registry "$NPM_REGISTRY"; \
-    fi && \
-    npm cache clean --force
+    curl tini ca-certificates && \
+    rm -rf /var/lib/apt/lists/* || true
 
 # 初始化配置目录
 RUN mkdir -p /root/.openclaw

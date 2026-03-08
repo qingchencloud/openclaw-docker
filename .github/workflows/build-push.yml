@@ -6,40 +6,19 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      openclaw_version:
-        description: 'OpenClaw version to build (e.g. latest, 4.0.2)'
+      openclaw_zh_tag:
+        description: '汉化版基础镜像标签（如 2026.3.7-zh.2）'
         required: false
-        default: 'latest'
-      openclaw_source:
-        description: 'OpenClaw source (zh or official)'
-        required: false
-        default: 'zh'
+        default: ''
 
 env:
   GHCR_REGISTRY: ghcr.io
   TENCENT_REGISTRY: ccr.ccs.tencentyun.com
+  DOCKERHUB_REGISTRY: docker.io
   IMAGE_NAME: qingchencloud/openclaw
 
 jobs:
-  # 先检测腾讯云 TCR 是否配置了 secrets
-  check-secrets:
-    runs-on: ubuntu-latest
-    outputs:
-      has_tencent: ${{ steps.check.outputs.has_tencent }}
-    steps:
-      - name: Check TCR secrets
-        id: check
-        env:
-          TCR_USER: ${{ secrets.TENCENT_TCR_USERNAME }}
-        run: |
-          if [ -n "$TCR_USER" ]; then
-            echo "has_tencent=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_tencent=false" >> $GITHUB_OUTPUT
-          fi
-
   build-and-push:
-    needs: check-secrets
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -59,13 +38,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 读取 VERSION 文件获取锁定的基础镜像版本
+      - name: Read VERSION file
+        id: version
+        run: |
+          # 从 VERSION 文件读取默认值
+          ZH_TAG=$(grep '^OPENCLAW_ZH_TAG=' VERSION | cut -d= -f2)
+          # workflow_dispatch 可覆盖
+          INPUT_TAG="${{ github.event.inputs.openclaw_zh_tag }}"
+          if [ -n "$INPUT_TAG" ]; then
+            ZH_TAG="$INPUT_TAG"
+          fi
+          echo "zh_tag=${ZH_TAG}" >> $GITHUB_OUTPUT
+
+          # 从 git tag 提取版本号
+          OUR_VERSION="latest"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            OUR_VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "our_version=${OUR_VERSION}" >> $GITHUB_OUTPUT
+
+          echo "基础镜像: 1186258278/openclaw-zh:${ZH_TAG}"
+          echo "输出版本: ${OUR_VERSION}"
+
       - name: Set up QEMU (multi-arch)
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # ── 登录 GHCR（国际源） ──
+      # ── 登录三个仓库 ──
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -73,65 +75,53 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── 登录腾讯云 TCR（国内源，可选） ──
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Login to Tencent Cloud TCR
-        if: needs.check-secrets.outputs.has_tencent == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.TENCENT_REGISTRY }}
-          username: ${{ secrets.TENCENT_TCR_USERNAME }}
-          password: ${{ secrets.TENCENT_TCR_PASSWORD }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
 
-      - name: Determine version and tags
-        id: meta
-        env:
-          HAS_TENCENT: ${{ needs.check-secrets.outputs.has_tencent }}
+      # ── 生成标签 ──
+      - name: Generate tags
+        id: tags
         run: |
-          VERSION="${{ github.event.inputs.openclaw_version || 'latest' }}"
-          SOURCE="${{ github.event.inputs.openclaw_source || 'zh' }}"
-
-          # 如果是 tag 触发，从 tag 名提取版本
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
-          fi
-
           SUFFIX="${{ matrix.tag_suffix }}"
+          VER="${{ steps.version.outputs.our_version }}"
 
-          # GHCR 标签
+          # 三个仓库都推 latest 标签
           TAGS="${{ env.GHCR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest${SUFFIX}"
-          if [ "$VERSION" != "latest" ]; then
-            TAGS="${TAGS},${{ env.GHCR_REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}${SUFFIX}"
-          fi
-          if [ "$SOURCE" = "official" ]; then
-            TAGS="${TAGS},${{ env.GHCR_REGISTRY }}/${{ env.IMAGE_NAME }}:official${SUFFIX}"
-          fi
+          TAGS="${TAGS},${{ env.DOCKERHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:latest${SUFFIX}"
+          TAGS="${TAGS},${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:latest${SUFFIX}"
 
-          # 腾讯云 TCR 标签（如果配置了）
-          if [ "$HAS_TENCENT" = "true" ]; then
-            TAGS="${TAGS},${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:latest${SUFFIX}"
-            if [ "$VERSION" != "latest" ]; then
-              TAGS="${TAGS},${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}${SUFFIX}"
-            fi
-            if [ "$SOURCE" = "official" ]; then
-              TAGS="${TAGS},${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:official${SUFFIX}"
-            fi
+          # 如果有版本号，额外推版本标签
+          if [ "$VER" != "latest" ]; then
+            TAGS="${TAGS},${{ env.GHCR_REGISTRY }}/${{ env.IMAGE_NAME }}:${VER}${SUFFIX}"
+            TAGS="${TAGS},${{ env.DOCKERHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:${VER}${SUFFIX}"
+            TAGS="${TAGS},${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:${VER}${SUFFIX}"
           fi
 
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "source=${SOURCE}" >> $GITHUB_OUTPUT
+          echo "推送标签:"
+          echo "$TAGS" | tr ',' '\n' | sed 's/^/  /'
 
+      # ── 构建并推送 ──
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.tags.outputs.tags }}
           platforms: linux/amd64,linux/arm64
           build-args: |
-            OPENCLAW_VERSION=${{ steps.meta.outputs.version }}
-            OPENCLAW_SOURCE=${{ steps.meta.outputs.source }}
+            OPENCLAW_ZH_TAG=${{ steps.version.outputs.zh_tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -139,14 +129,13 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Print image locations
+      - name: Summary
         run: |
-          echo "✅ 镜像构建并推送成功"
+          echo "✅ 镜像构建并推送成功！"
           echo ""
-          echo "📦 国际源（GHCR）:"
-          echo "   ghcr.io/${{ env.IMAGE_NAME }}:latest"
-          echo "   ghcr.io/${{ env.IMAGE_NAME }}:latest-gateway"
+          echo "📦 GHCR:       ghcr.io/${{ env.IMAGE_NAME }}:latest"
+          echo "🐳 DockerHub:  docker.io/${{ env.IMAGE_NAME }}:latest"
+          echo "🇨🇳 腾讯云:    ${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
           echo ""
-          echo "🇨🇳 国内源（腾讯云 TCR）:"
-          echo "   ${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "   ${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:latest-gateway"
+          echo "用户一键部署："
+          echo "  docker run -d -p 1420:1420 -p 18789:18789 -v openclaw-data:/root/.openclaw ghcr.io/${{ env.IMAGE_NAME }}:latest"

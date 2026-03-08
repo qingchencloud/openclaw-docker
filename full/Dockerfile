@@ -1,10 +1,28 @@
 # OpenClaw Full — Gateway + ClawPanel Web 一体镜像
-# 包含 OpenClaw Gateway 和 ClawPanel Web 管理面板
+# 基于汉化版预构建镜像，叠加 ClawPanel Web 管理面板
 #
 # 构建：docker build -t qingchencloud/openclaw:latest -f full/Dockerfile .
 # 运行：docker run -d -p 1420:1420 -p 18789:18789 -v openclaw-data:/root/.openclaw qingchencloud/openclaw
 
-FROM node:22-slim
+# ── 第一阶段：构建 ClawPanel Web ──
+FROM node:22-slim AS panel-builder
+
+ARG CLAWPANEL_REPO=https://github.com/qingchencloud/clawpanel.git
+ARG CLAWPANEL_BRANCH=main
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
+WORKDIR /build
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch ${CLAWPANEL_BRANCH} ${CLAWPANEL_REPO} . && \
+    NODE_ENV=development npm ci --registry "$NPM_REGISTRY" && \
+    npm run build && \
+    rm -rf .git node_modules src-tauri docs
+
+# ── 第二阶段：基于汉化版镜像，叠加 Panel ──
+# 版本锁定：见 VERSION 文件
+ARG OPENCLAW_ZH_TAG=2026.3.7-zh.2
+FROM 1186258278/openclaw-zh:${OPENCLAW_ZH_TAG}
 
 LABEL maintainer="qingchencloud <https://github.com/qingchencloud>"
 LABEL org.opencontainers.image.title="OpenClaw"
@@ -12,48 +30,23 @@ LABEL org.opencontainers.image.description="OpenClaw AI 助手平台 — Gateway
 LABEL org.opencontainers.image.source="https://github.com/qingchencloud/openclaw-docker"
 LABEL org.opencontainers.image.url="https://github.com/qingchencloud/openclaw-docker"
 
-# 构建参数
-ARG OPENCLAW_SOURCE=zh
-ARG OPENCLAW_VERSION=latest
-ARG NPM_REGISTRY=https://registry.npmmirror.com
-ARG CLAWPANEL_REPO=https://github.com/qingchencloud/clawpanel.git
-ARG CLAWPANEL_BRANCH=main
-
 # 环境变量
-ENV OPENCLAW_SOURCE=${OPENCLAW_SOURCE} \
-    OPENCLAW_VERSION=${OPENCLAW_VERSION} \
-    NPM_REGISTRY=${NPM_REGISTRY} \
-    GATEWAY_PORT=18789 \
+ENV GATEWAY_PORT=18789 \
     PANEL_PORT=1420 \
     PANEL_PASSWORD="" \
     NODE_ENV=production \
     TZ=Asia/Shanghai
 
-# 安装基础工具（ss 用于服务状态检测，lsof 做 fallback）
+# 安装运行时依赖（基础镜像可能缺少 tini、curl 等）
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl git tini ca-certificates iproute2 lsof procps && \
-    rm -rf /var/lib/apt/lists/*
+    curl tini ca-certificates iproute2 lsof procps && \
+    rm -rf /var/lib/apt/lists/* || true
 
-# 安装 OpenClaw
-RUN if [ "$OPENCLAW_SOURCE" = "zh" ]; then \
-      PKG="@qingchencloud/openclaw-zh"; \
-    else \
-      PKG="openclaw"; \
-    fi && \
-    if [ "$OPENCLAW_VERSION" = "latest" ]; then \
-      npm install -g "$PKG" --registry "$NPM_REGISTRY"; \
-    else \
-      npm install -g "${PKG}@${OPENCLAW_VERSION}" --registry "$NPM_REGISTRY"; \
-    fi && \
-    npm cache clean --force
-
-# 安装 ClawPanel Web
+# 复制 ClawPanel Web 构建产物
 WORKDIR /app
-RUN git clone --depth 1 --branch ${CLAWPANEL_BRANCH} ${CLAWPANEL_REPO} . && \
-    NODE_ENV=development npm ci --registry "$NPM_REGISTRY" && \
-    npm run build && \
-    # serve.js + dev-api.js 只依赖 Node.js 内置模块，运行时不需要 node_modules
-    rm -rf .git node_modules src-tauri docs
+COPY --from=panel-builder /build/dist ./dist
+COPY --from=panel-builder /build/scripts ./scripts
+COPY --from=panel-builder /build/package.json ./
 
 # 初始化配置目录
 RUN mkdir -p /root/.openclaw
