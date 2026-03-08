@@ -71,63 +71,49 @@ if ! grep -q '"allowedOrigins"' "$CONFIG_FILE" 2>/dev/null; then
 fi
 
 # ── 环境变量注入模型配置（可选） ──────────────
-# 支持通过 ENV 预配置模型，用户无需手动编辑
-# 用法：docker run -e OPENAI_API_KEY=sk-xxx -e OPENAI_BASE_URL=https://api.openai.com/v1 ...
-if [ -n "$OPENAI_API_KEY" ]; then
-  echo "[INIT] 检测到 OPENAI_API_KEY，自动配置 OpenAI 模型渠道..."
-  BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}"
-  # 使用 node 操作 JSON（比 sed 可靠）
-  node -e "
-    const fs = require('fs');
-    const cfg = JSON.parse(fs.readFileSync('$CONFIG_FILE', 'utf8'));
-    if (!cfg.models) cfg.models = {};
-    if (!cfg.models.providers) cfg.models.providers = {};
-    cfg.models.providers['openai'] = {
-      name: 'OpenAI',
-      baseUrl: '$BASE_URL',
-      apiKey: '$OPENAI_API_KEY',
-      models: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o1-mini', 'o3-mini']
-    };
-    fs.writeFileSync('$CONFIG_FILE', JSON.stringify(cfg, null, 2));
-  " 2>/dev/null && echo "[INIT] ✓ OpenAI 渠道已配置" || echo "[WARN] OpenAI 渠道配置失败，请通过面板手动配置"
-fi
+# 使用 process.env 读取，避免 shell 插值导致特殊字符问题
+INJECT_SCRIPT=$(cat <<'INJECT_EOF'
+const fs = require('fs');
+const p = process.env.CONFIG_FILE;
+const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+if (!cfg.models) cfg.models = {};
+if (!cfg.models.providers) cfg.models.providers = {};
 
-if [ -n "$ANTHROPIC_API_KEY" ]; then
-  echo "[INIT] 检测到 ANTHROPIC_API_KEY，自动配置 Anthropic 模型渠道..."
-  BASE_URL="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
-  node -e "
-    const fs = require('fs');
-    const cfg = JSON.parse(fs.readFileSync('$CONFIG_FILE', 'utf8'));
-    if (!cfg.models) cfg.models = {};
-    if (!cfg.models.providers) cfg.models.providers = {};
-    cfg.models.providers['anthropic'] = {
-      name: 'Anthropic',
-      baseUrl: '$BASE_URL',
-      apiKey: '$ANTHROPIC_API_KEY',
-      models: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022']
-    };
-    fs.writeFileSync('$CONFIG_FILE', JSON.stringify(cfg, null, 2));
-  " 2>/dev/null && echo "[INIT] ✓ Anthropic 渠道已配置" || echo "[WARN] Anthropic 渠道配置失败，请通过面板手动配置"
-fi
+if (process.env.OPENAI_API_KEY) {
+  cfg.models.providers['openai'] = {
+    name: 'OpenAI',
+    baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    apiKey: process.env.OPENAI_API_KEY,
+    models: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o1-mini', 'o3-mini']
+  };
+}
+if (process.env.ANTHROPIC_API_KEY) {
+  cfg.models.providers['anthropic'] = {
+    name: 'Anthropic',
+    baseUrl: process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com',
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    models: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022']
+  };
+}
+if (process.env.CUSTOM_API_KEY && process.env.CUSTOM_BASE_URL) {
+  const models = (process.env.CUSTOM_MODEL_LIST || 'gpt-4o,gpt-4o-mini').split(',').map(s => s.trim());
+  cfg.models.providers['custom'] = {
+    name: process.env.CUSTOM_PROVIDER_NAME || 'Custom',
+    baseUrl: process.env.CUSTOM_BASE_URL,
+    apiKey: process.env.CUSTOM_API_KEY,
+    models
+  };
+}
 
-# 通用 OpenAI 兼容渠道（适用于各种第三方 API）
-if [ -n "$CUSTOM_API_KEY" ] && [ -n "$CUSTOM_BASE_URL" ]; then
-  CUSTOM_NAME="${CUSTOM_PROVIDER_NAME:-Custom}"
-  CUSTOM_MODELS="${CUSTOM_MODEL_LIST:-gpt-4o,gpt-4o-mini}"
-  echo "[INIT] 检测到 CUSTOM_API_KEY，自动配置 ${CUSTOM_NAME} 渠道..."
-  node -e "
-    const fs = require('fs');
-    const cfg = JSON.parse(fs.readFileSync('$CONFIG_FILE', 'utf8'));
-    if (!cfg.models) cfg.models = {};
-    if (!cfg.models.providers) cfg.models.providers = {};
-    cfg.models.providers['custom'] = {
-      name: '$CUSTOM_NAME',
-      baseUrl: '$CUSTOM_BASE_URL',
-      apiKey: '$CUSTOM_API_KEY',
-      models: '$CUSTOM_MODELS'.split(',').map(s => s.trim())
-    };
-    fs.writeFileSync('$CONFIG_FILE', JSON.stringify(cfg, null, 2));
-  " 2>/dev/null && echo "[INIT] ✓ ${CUSTOM_NAME} 渠道已配置" || echo "[WARN] ${CUSTOM_NAME} 渠道配置失败"
+fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
+INJECT_EOF
+)
+
+if [ -n "$OPENAI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ] || { [ -n "$CUSTOM_API_KEY" ] && [ -n "$CUSTOM_BASE_URL" ]; }; then
+  echo "[INIT] 注入模型渠道配置..."
+  CONFIG_FILE="$CONFIG_FILE" node -e "$INJECT_SCRIPT" 2>/dev/null \
+    && echo "[INIT] ✓ 模型渠道已配置" \
+    || echo "[WARN] 模型渠道配置失败"
 fi
 
 # ── 启动 Gateway ──────────────────────────────
