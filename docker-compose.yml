@@ -1,0 +1,39 @@
+# OpenClaw Docker Compose — 开箱即用部署
+#
+# 一键启动：docker compose up -d
+# 管理面板：http://localhost:1420
+# Gateway： ws://localhost:18789/ws
+#
+# 配置说明见 .env.example
+
+services:
+  openclaw:
+    build:
+      context: .
+      dockerfile: full/Dockerfile
+      args:
+        OPENCLAW_SOURCE: ${OPENCLAW_SOURCE:-zh}
+        OPENCLAW_VERSION: ${OPENCLAW_VERSION:-latest}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    image: ghcr.io/qingchencloud/openclaw:latest
+    container_name: openclaw
+    restart: unless-stopped
+    ports:
+      - "${PANEL_PORT:-1420}:1420"
+      - "${GATEWAY_PORT:-18789}:18789"
+    volumes:
+      - openclaw-data:/root/.openclaw
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - GATEWAY_PORT=18789
+      - PANEL_PORT=1420
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:1420/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  openclaw-data:
+    driver: local

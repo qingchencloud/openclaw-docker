@@ -1,0 +1,59 @@
+# OpenClaw 分离部署 — Gateway 和 Panel 各自独立容器
+#
+# 适用场景：
+#   - Gateway 和 Panel 需要独立扩缩容
+#   - Gateway 需要更高稳定性，不受 Panel 重启影响
+#   - 未来集群模式的基础
+#
+# 启动：docker compose -f docker-compose.split.yml up -d
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+      args:
+        OPENCLAW_SOURCE: ${OPENCLAW_SOURCE:-zh}
+        OPENCLAW_VERSION: ${OPENCLAW_VERSION:-latest}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    image: ghcr.io/qingchencloud/openclaw:gateway
+    container_name: openclaw-gateway
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_PORT:-18789}:18789"
+    volumes:
+      - openclaw-data:/root/.openclaw
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - GATEWAY_PORT=18789
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:18789/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  panel:
+    build:
+      context: .
+      dockerfile: full/Dockerfile
+      args:
+        OPENCLAW_SOURCE: ${OPENCLAW_SOURCE:-zh}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    image: ghcr.io/qingchencloud/openclaw:latest
+    container_name: openclaw-panel
+    restart: unless-stopped
+    ports:
+      - "${PANEL_PORT:-1420}:1420"
+    volumes:
+      - openclaw-data:/root/.openclaw
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - PANEL_PORT=1420
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+volumes:
+  openclaw-data:
+    driver: local
