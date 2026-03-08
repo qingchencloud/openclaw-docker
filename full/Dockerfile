@@ -50,7 +50,7 @@ RUN if [ "$OPENCLAW_SOURCE" = "zh" ]; then \
 # 安装 ClawPanel Web
 WORKDIR /app
 RUN git clone --depth 1 --branch ${CLAWPANEL_BRANCH} ${CLAWPANEL_REPO} . && \
-    npm ci --registry "$NPM_REGISTRY" && \
+    NODE_ENV=development npm ci --registry "$NPM_REGISTRY" && \
     npm run build && \
     # serve.js + dev-api.js 只依赖 Node.js 内置模块，运行时不需要 node_modules
     rm -rf .git node_modules src-tauri docs
