@@ -14,8 +14,8 @@ on:
 env:
   GHCR_REGISTRY: ghcr.io
   TENCENT_REGISTRY: ccr.ccs.tencentyun.com
-  DOCKERHUB_REGISTRY: docker.io
   IMAGE_NAME: qingchencloud/openclaw
+  DOCKERHUB_IMAGE: 1186258278/openclaw
 
 jobs:
   build-and-push:
@@ -97,13 +97,13 @@ jobs:
 
           # 三个仓库都推 latest 标签
           TAGS="${{ env.GHCR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest${SUFFIX}"
-          TAGS="${TAGS},${{ env.DOCKERHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:latest${SUFFIX}"
+          TAGS="${TAGS},${{ env.DOCKERHUB_IMAGE }}:latest${SUFFIX}"
           TAGS="${TAGS},${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:latest${SUFFIX}"
 
           # 如果有版本号，额外推版本标签
           if [ "$VER" != "latest" ]; then
             TAGS="${TAGS},${{ env.GHCR_REGISTRY }}/${{ env.IMAGE_NAME }}:${VER}${SUFFIX}"
-            TAGS="${TAGS},${{ env.DOCKERHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:${VER}${SUFFIX}"
+            TAGS="${TAGS},${{ env.DOCKERHUB_IMAGE }}:${VER}${SUFFIX}"
             TAGS="${TAGS},${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:${VER}${SUFFIX}"
           fi
 
@@ -134,7 +134,7 @@ jobs:
           echo "✅ 镜像构建并推送成功！"
           echo ""
           echo "📦 GHCR:       ghcr.io/${{ env.IMAGE_NAME }}:latest"
-          echo "🐳 DockerHub:  docker.io/${{ env.IMAGE_NAME }}:latest"
+          echo "🐳 DockerHub:  ${{ env.DOCKERHUB_IMAGE }}:latest"
           echo "🇨🇳 腾讯云:    ${{ env.TENCENT_REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
           echo ""
           echo "用户一键部署："
