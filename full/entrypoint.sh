@@ -121,19 +121,28 @@ fi
 # ── 启动 Gateway（后台） ─────────────────────
 echo ""
 echo "[START] 启动 Gateway..."
-openclaw gateway start &
+# openclaw gateway 直接运行 gateway 进程（不是 start 子命令）
+openclaw gateway &
 GATEWAY_PID=$!
 
-echo "[WAIT] 等待 Gateway 就绪..."
+echo "[WAIT] 等待 Gateway 就绪 (PID: $GATEWAY_PID)..."
+READY=false
 for i in $(seq 1 30); do
+  # 先检查进程还活着
+  if ! kill -0 "$GATEWAY_PID" 2>/dev/null; then
+    echo "[ERROR] Gateway 进程已退出，请检查配置"
+    echo "[ERROR] 日志: cat /root/.openclaw/logs/gateway.log"
+    break
+  fi
   if curl -sf http://127.0.0.1:${GATEWAY_PORT:-18789}/health >/dev/null 2>&1 || \
      curl -sf http://127.0.0.1:${GATEWAY_PORT:-18789}/ >/dev/null 2>&1; then
     echo "[OK] ✓ Gateway 已就绪"
+    READY=true
     break
   fi
-  [ "$i" = "30" ] && echo "[WARN] Gateway 未在 30 秒内就绪，Panel 仍将启动"
   sleep 1
 done
+[ "$READY" = "false" ] && echo "[WARN] Gateway 未在 30 秒内就绪，Panel 仍将启动"
 
 # ── 启动 ClawPanel Web（前台） ────────────────
 echo ""

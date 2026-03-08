@@ -4,7 +4,7 @@
 # 构建：docker build -t qingchencloud/openclaw:latest -f full/Dockerfile .
 # 运行：docker run -d -p 1420:1420 -p 18789:18789 -v openclaw-data:/root/.openclaw qingchencloud/openclaw
 
-FROM node:22-alpine
+FROM node:22-slim
 
 LABEL maintainer="qingchencloud <https://github.com/qingchencloud>"
 LABEL org.opencontainers.image.title="OpenClaw"
@@ -29,8 +29,10 @@ ENV OPENCLAW_SOURCE=${OPENCLAW_SOURCE} \
     NODE_ENV=production \
     TZ=Asia/Shanghai
 
-# 安装基础工具
-RUN apk add --no-cache curl git tzdata tini
+# 安装基础工具（ss 用于服务状态检测，lsof 做 fallback）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl git tini ca-certificates iproute2 lsof procps && \
+    rm -rf /var/lib/apt/lists/*
 
 # 安装 OpenClaw
 RUN if [ "$OPENCLAW_SOURCE" = "zh" ]; then \
@@ -50,7 +52,8 @@ WORKDIR /app
 RUN git clone --depth 1 --branch ${CLAWPANEL_BRANCH} ${CLAWPANEL_REPO} . && \
     npm ci --registry "$NPM_REGISTRY" && \
     npm run build && \
-    rm -rf .git node_modules/.cache
+    # serve.js + dev-api.js 只依赖 Node.js 内置模块，运行时不需要 node_modules
+    rm -rf .git node_modules src-tauri docs
 
 # 初始化配置目录
 RUN mkdir -p /root/.openclaw
@@ -69,5 +72,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 COPY full/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["tini", "--"]
 CMD ["/entrypoint.sh"]

@@ -138,4 +138,5 @@ echo "  🔌 ws://0.0.0.0:${GATEWAY_PORT:-18789}/ws"
 echo "────────────────────────────────────────"
 echo ""
 
-exec openclaw gateway start --foreground
+# openclaw gateway 直接运行（前台模式），Docker 管理进程生命周期
+exec openclaw gateway

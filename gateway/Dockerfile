@@ -4,7 +4,7 @@
 # 构建：docker build -t qingchencloud/openclaw:gateway -f gateway/Dockerfile .
 # 运行：docker run -d -p 18789:18789 -v openclaw-data:/root/.openclaw qingchencloud/openclaw:gateway
 
-FROM node:22-alpine
+FROM node:22-slim
 
 LABEL maintainer="qingchencloud <https://github.com/qingchencloud>"
 LABEL org.opencontainers.image.title="OpenClaw Gateway"
@@ -26,7 +26,9 @@ ENV OPENCLAW_SOURCE=${OPENCLAW_SOURCE} \
     TZ=Asia/Shanghai
 
 # 安装基础工具
-RUN apk add --no-cache curl tzdata tini
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl tini ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 # 安装 OpenClaw
 RUN if [ "$OPENCLAW_SOURCE" = "zh" ]; then \
@@ -59,5 +61,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 COPY gateway/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["tini", "--"]
 CMD ["/entrypoint.sh"]
